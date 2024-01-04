@@ -9,6 +9,8 @@ esp32 microcontroller, hooked a RFID-RC522 reader to it, and wrote some code to 
 place on the CD cases and make a API call to Spotify to play that album on the Echo Dot that I mounted into a Walnut and 
 Birdseye Maple case that I built.
 
+<img width="960" alt="image" src="https://github.com/california444/esp32SpotifyEchoDot/assets/27780952/3804aa03-0c44-4422-941d-b9d0aaacc6c5">
+
 
 See my YouTube video for more information.
 
