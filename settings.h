@@ -1,7 +1,3 @@
-// WiFi settings
-//const char* ssid = "";
-//const char* pass = "";
-
 // Spotify settings
 //String deviceName = "";
 String clientId = "825cf5ff4f534d0fae90224e722a88e6";
