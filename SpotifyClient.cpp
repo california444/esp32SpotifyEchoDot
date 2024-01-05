@@ -1,24 +1,72 @@
 
-
 #define CORE_DEBUG_LEVEL ARDUHAL_LOG_LEVEL_VERBOSE
 
+#include <WiFiClientSecure.h>
+#if defined(ESP8266)
+#pragma message "ESP8266 stuff happening!"
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+// #include <WiFiClientSecureBearSSL.h>
+//#include <BearSSLHelpers.h>
+//#include <CertStoreBearSSL.h>
+
+
+#elif defined(ESP32)
+#pragma message "ESP32 stuff happening!"
 #include <HTTPClient.h>
+#endif
+
+
+
 #include "SpotifyClient.h"
 #include <base64.h>
+#include "certs.h"
+
+WiFiClientSecure client;
+
+  #if defined(ESP8266)
+  X509List cert(digicert_root_ca);
+  
+  #elif defined(ESP32)
+  client.setCACert(digicert_root_ca);
+  #endif
 
 
-SpotifyClient::SpotifyClient(String clientId, String clientSecret, String deviceName, String refreshToken) {
+SpotifyClient::SpotifyClient() {}
+
+void SpotifyClient::Init(String clientId, String clientSecret, String deviceName, String refreshToken) {
   this->clientId = clientId;
   this->clientSecret = clientSecret;
   this->refreshToken = refreshToken;
   this->deviceName = deviceName;
 
-  client.setCACert(digicert_root_ca);
+  // Set time via NTP, as required for x.509 validation
+  configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+
+  Serial.print("Waiting for NTP time sync: ");
+  time_t now = time(nullptr);
+  while (now < 8 * 3600 * 2) {
+    delay(500);
+    Serial.print(".");
+    now = time(nullptr);
+  }
+  Serial.println("");
+  struct tm timeinfo;
+  gmtime_r(&now, &timeinfo);
+  Serial.print("Current time: ");
+  Serial.print(asctime(&timeinfo));
+
+    // Use WiFiClientSecure class to create TLS connection
+    
+    client.setTrustAnchors(&cert);
+  
+  
 }
 
 void SpotifyClient::FetchToken()
 {
     HTTPClient http;
+
 
     String body = "grant_type=refresh_token&refresh_token=" + refreshToken;
     String authorizationRaw = clientId + ":" + clientSecret;
