@@ -5,9 +5,7 @@
 
 #include <SPI.h>
 #include "MFRC522.h"
-
 #include <WiFiManager.h>
-
 #include "settings.h"
 
 #ifdef ESP32
@@ -23,19 +21,13 @@
 #define TRIGGER_PIN 0
 
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
-
 byte const BUFFERSiZE = 176;
-
 SpotifyClient spotify = SpotifyClient();
-
-WiFiManager wifiManager;
-bool portalRunning = false;
-
-char refreshToken[150] = "AQDcqxZ34YlfsQUggQvHkOJqI3OLnQyYa1KQYFqzfy7C23Tk3NCHtEg909DAL_yhIgLhtUqoOhts0-isbxnb3M8qaC7WoZo_LrSx3vAnkBTSW1w66vWSc6wOmUM0-19CBD4";
-char deviceName[10] = "Roman";
 
 //flag for saving data
 bool shouldSaveConfig = false;
+WiFiManager wifiManager;
+bool portalRunning = false;
 
 //callback notifying us of the need to save config
 void saveConfigCallback () {
@@ -66,8 +58,6 @@ void setup()
     Serial.println("Datei-System formatiert Error");
   }
   */
-
-
     if (SPIFFS.exists("/config.json")) {
       //file exists, reading and loading
       Serial.println("reading config file");
@@ -80,17 +70,17 @@ void setup()
 
         configFile.readBytes(buf.get(), size);
 
-#ifdef ARDUINOJSON_VERSION_MAJOR >= 6
-        DynamicJsonDocument json(1024);
-        auto deserializeError = deserializeJson(json, buf.get());
-        serializeJson(json, Serial);
-        if ( ! deserializeError ) {
-#else
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& json = jsonBuffer.parseObject(buf.get());
-        json.printTo(Serial);
-        if (json.success()) {
-#endif
+        #ifdef ARDUINOJSON_VERSION_MAJOR >= 6
+                DynamicJsonDocument json(1024);
+                auto deserializeError = deserializeJson(json, buf.get());
+                serializeJson(json, Serial);
+                if ( ! deserializeError ) {
+        #else
+                DynamicJsonBuffer jsonBuffer;
+                JsonObject& json = jsonBuffer.parseObject(buf.get());
+                json.printTo(Serial);
+                if (json.success()) {
+        #endif
           Serial.println("\nparsed json");
           strcpy(refreshToken, json["refreshToken"]);
           strcpy(deviceName, json["deviceName"]);
@@ -107,8 +97,6 @@ void setup()
 
   WiFiManagerParameter custom_field_token("refreshTokenId", "Refresh Token", refreshToken, 150);
   WiFiManagerParameter custom_field_name("deviceNameId", "Device Name", deviceName, 10);
-
-
 
   wifiManager.setSaveConfigCallback(saveConfigCallback);
 
@@ -128,7 +116,6 @@ void setup()
   //if you get here you have connected to the WiFi
   Serial.println("connected...yeey :)");
 
-
   strcpy(refreshToken, custom_field_token.getValue());
   strcpy(deviceName, custom_field_name.getValue());
   Serial.println("The values in the file are: ");
@@ -139,31 +126,29 @@ void setup()
   if (shouldSaveConfig) {
     Serial.println("saving config");
         //read updated parameters
+    #ifdef ARDUINOJSON_VERSION_MAJOR >= 6
+        DynamicJsonDocument json(1024);
+    #else
+        DynamicJsonBuffer jsonBuffer;
+        JsonObject& json = jsonBuffer.createObject();
+    #endif
+        json["refreshToken"] = refreshToken;
+        json["deviceName"] = deviceName;
 
+        File configFile = SPIFFS.open("/config.json", "w");
+        if (!configFile) {
+          Serial.println("failed to open config file for writing");
+        }
 
-#ifdef ARDUINOJSON_VERSION_MAJOR >= 6
-    DynamicJsonDocument json(1024);
-#else
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();
-#endif
-    json["refreshToken"] = refreshToken;
-    json["deviceName"] = deviceName;
-
-    File configFile = SPIFFS.open("/config.json", "w");
-    if (!configFile) {
-      Serial.println("failed to open config file for writing");
-    }
-
-#ifdef ARDUINOJSON_VERSION_MAJOR >= 6
-    serializeJson(json, Serial);
-    serializeJson(json, configFile);
-#else
-    json.printTo(Serial);
-    json.printTo(configFile);
-#endif
-    configFile.close();
-    //end save
+    #ifdef ARDUINOJSON_VERSION_MAJOR >= 6
+        serializeJson(json, Serial);
+        serializeJson(json, configFile);
+    #else
+        json.printTo(Serial);
+        json.printTo(configFile);
+    #endif
+        configFile.close();
+        //end save
   }
 
   Serial.println("local ip:");
@@ -171,13 +156,11 @@ void setup()
   Serial.println("Init Spotify");
   spotify.Init(clientId, clientSecret, deviceName, refreshToken);
   Serial.println("Init Spotify done!");
-  //connectWifi();
 
   // Init SPI bus and MFRC522 for NFC reader
 
-
-  //SPI.begin();        
-  //mfrc522.PCD_Init(); 
+  SPI.begin();        
+  mfrc522.PCD_Init(); 
 
   // Refresh Spotify Auth token and Deivce ID
   Serial.println("Get Spotify access_token");
@@ -191,27 +174,16 @@ void setup()
   Serial.println("Play test: spotify:playlist:1UWJY6Ql9JsqGaor6ifZe7");
   playSpotifyUri(context_uri);
 }
-/*
-String getParam(String name){
-  //read parameter from server, for customhmtl input
-  String value;
-  if(wifiManager.server->hasArg(name)) {
-    value = wifiManager.server->arg(name);
-  }
-  return value;
-}
-*/
 
 void loop()
 {
   checkButton();
-  /*
+  
   if (mfrc522.PICC_IsNewCardPresent())
   {
     Serial.println("NFC tag present");
     readNFCTag();
   }
-  */
 }
 
 void checkButton(){
@@ -234,7 +206,7 @@ void checkButton(){
           portalRunning = true;
         }
         else{
-          Serial.println("Button Pressed, Stopping Portal");
+          Serial.println("Button Held, Stopping Portal");
           wifiManager.stopWebPortal();
           portalRunning = false;
         }
@@ -329,18 +301,15 @@ bool readNFCTagData(byte *dataBuffer)
   The first 28 bytes from the tag is a header info for the tag
   Spotify link starts at position 29
 
-
   Parse a link
   open.spotify.com/album/3JfSxDfmwS5OeHPwLSkrfr
   open.spotify.com/playlist/69pYSDt6QWuBMtIWSZ8uQb
   open.spotify.com/artist/53XhwfbYqKCa1cC15pYq2q
 
-
   Return a uri
   spotify:album:3JfSxDfmwS5OeHPwLSkrfr
   spotify:playlist:69pYSDt6QWuBMtIWSZ8uQb
   spotify:artist:53XhwfbYqKCa1cC15pYq2q
-
 */
 
 String parseNFCTagData(byte *dataBuffer)
@@ -382,22 +351,3 @@ void hexDump(byte *dataBuffer)
     Serial.print(dataBuffer[index], HEX);
   }
 }
-/*
-void connectWifi()
-{
-  WiFi.begin(ssid, pass);
-  Serial.println("");
-
-  // Wait for connection
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.print("Connected to ");
-  Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-}
-*/
