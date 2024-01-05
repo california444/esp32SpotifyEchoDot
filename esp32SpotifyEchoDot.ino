@@ -14,13 +14,15 @@
 
 #include <ArduinoJson.h> 
 
-#define RST_PIN 22 // Configurable, see typical pin layout above
-#define SS_PIN 21  // Configurable, see typical pin layout above
+#define RST_PIN 5 // Configurable, see typical pin layout above
+#define SS_PIN 15  // Configurable, see typical pin layout above
 
 // select which pin will trigger the configuration portal when set to LOW
 #define TRIGGER_PIN 0
 
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create MFRC522 instance
+
+//USED tags: NTAG215-540 Byte Speicher
 byte const BUFFERSiZE = 176;
 SpotifyClient spotify = SpotifyClient();
 
@@ -37,7 +39,7 @@ void saveConfigCallback () {
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(115200); 
   Serial.println("Setup started");
 
   pinMode(TRIGGER_PIN, INPUT_PULLUP);  
@@ -170,20 +172,33 @@ void setup()
   spotify.GetDevices();
   Serial.println("Get Spotify devices done !");
 
-  String context_uri = "spotify:playlist:1UWJY6Ql9JsqGaor6ifZe7";
-  Serial.println("Play test: spotify:playlist:1UWJY6Ql9JsqGaor6ifZe7");
-  playSpotifyUri(context_uri);
+  //String context_uri = "spotify:playlist:1UWJY6Ql9JsqGaor6ifZe7";
+  //Serial.println("Play test: spotify:playlist:1UWJY6Ql9JsqGaor6ifZe7");
+  //playSpotifyUri(context_uri);
 }
 
 void loop()
 {
   checkButton();
-  
-  if (mfrc522.PICC_IsNewCardPresent())
-  {
-    Serial.println("NFC tag present");
-    readNFCTag();
-  }
+  // Look for new cards
+  if ( ! mfrc522.PICC_IsNewCardPresent())
+      return;
+  // Select one of the cards
+  if ( ! mfrc522.PICC_ReadCardSerial())
+      return;
+
+  readNFCTag2();
+
+
+}
+/*
+ * Helper routine to dump a byte array as hex values to Serial.
+ */
+void dump_byte_array(byte *buffer, byte bufferSize) {
+    for (byte i = 0; i < bufferSize; i++) {
+        Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+        Serial.print(buffer[i], HEX);
+    }
 }
 
 void checkButton(){
@@ -214,21 +229,61 @@ void checkButton(){
     }
   }
 }
-
-void readNFCTag()
+void readNFCTag2() 
 {
-  if (mfrc522.PICC_ReadCardSerial())
-  {
-    byte dataBuffer[BUFFERSiZE];
-    readNFCTagData(dataBuffer);
-    mfrc522.PICC_HaltA();
+  // Show some details of the PICC (that is: the tag/card)
+  Serial.print(F("Card UID:"));
+  dump_byte_array(mfrc522.uid.uidByte, mfrc522.uid.size);
+  Serial.println();
+  //Serial.print(F("PICC type: "));
+  //byte piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
+  //Serial.println(mfrc522.PICC_GetTypeName(piccType));
 
-    //hexDump(dataBuffer);
-    Serial.print("Read NFC tag: ");
-    String context_uri = parseNFCTagData(dataBuffer);
-    Serial.println(context_uri);
-    playSpotifyUri(context_uri);
+  byte dataBuffer[BUFFERSiZE];
+
+  for (byte i = 0; i < BUFFERSiZE; i++)
+  {
+    dataBuffer[i] = 0;
   }
+
+  MFRC522::StatusCode status;
+
+  byte buffer[18];
+  byte byteCount;
+  byte x = 0;
+
+  int totalBytesRead = 0;
+
+  for (byte page = 0; page < BUFFERSiZE / 4; page += 4)
+  {
+    // Read pages
+    byteCount = sizeof(buffer);
+    status = mfrc522.MIFARE_Read(page, buffer, &byteCount);
+    if (status == mfrc522.STATUS_OK)
+    {
+      totalBytesRead += byteCount - 2;
+      //Serial.print(F("Read bytes:"));
+      //Serial.println(totalBytesRead);
+
+      for (byte i = 0; i < byteCount - 2; i++)
+      {
+        dataBuffer[x++] = buffer[i]; // add data output buffer
+      }
+    }
+    else
+    {
+      Serial.print(F("Read failed at:"));
+      Serial.println(totalBytesRead);
+      break;
+    }
+  }
+  mfrc522.PICC_HaltA();
+  Serial.print("Read Data from NFC: ");
+  dump_byte_array(dataBuffer, sizeof(dataBuffer));
+  Serial.println();
+  String context_uri = parseNFCTagData3(dataBuffer);
+  Serial.println(context_uri);
+  playSpotifyUri(context_uri);
 }
 
 void playSpotifyUri(String context_uri)
@@ -312,42 +367,41 @@ bool readNFCTagData(byte *dataBuffer)
   spotify:artist:53XhwfbYqKCa1cC15pYq2q
 */
 
-String parseNFCTagData(byte *dataBuffer)
+String parseNFCTagData3(byte *dataBuffer)
 {
-  // first 28 bytes is header info
+  // first 23 bytes is header info
   // data ends with 0xFE
-  //String retVal = "spotify:";
   String retVal = "";
-  //for (int i = 28 + 17; i < BUFFERSiZE; i++)
-  for (int i = 28; i < BUFFERSiZE; i++)
-  {
-    if (dataBuffer[i] == 0xFE || dataBuffer[i] == 0x00)
-    {
-      break;
-    }
-    if (dataBuffer[i] == '/')
-    {
-      retVal += ':';
-    }
-    else
-    {
-      retVal += (char)dataBuffer[i];
-    }
-  }
-  return retVal;
-}
 
-void hexDump(byte *dataBuffer)
-{
-  Serial.print(F("hexDump: "));
-  Serial.println();
-  for (byte index = 0; index < BUFFERSiZE; index++)
+  for (int i = 23; i < BUFFERSiZE; i++)
   {
-    if (index % 4 == 0)
-    {
-      Serial.println();
-    }
-    Serial.print(dataBuffer[index] < 0x10 ? F(" 0") : F(" "));
-    Serial.print(dataBuffer[index], HEX);
+    
+    if(dataBuffer[i] == 0xFE) break;
+    if(dataBuffer[i] == 0x00) continue;
+    
+    retVal += (char)dataBuffer[i];
   }
+
+  if(retVal.startsWith("open.spotify")) {
+    int spotifyIDPos = retVal.lastIndexOf("/");
+    if(spotifyIDPos>0) {
+      String spotifyID = retVal.substring(spotifyIDPos+1, retVal.length());
+      int categoryIDPos = retVal.lastIndexOf("/", spotifyIDPos-1);
+      if(categoryIDPos>0) {
+        String categoryID = retVal.substring(categoryIDPos+1, spotifyIDPos);
+
+        String uri = "spotify:";
+        uri += categoryID;
+        uri += ":";
+        uri += spotifyID;
+
+        return uri;
+      }
+    }
+  }
+  
+  else if(retVal.startsWith("spotify:")) {
+    return retVal;
+  }
+  return "";
 }

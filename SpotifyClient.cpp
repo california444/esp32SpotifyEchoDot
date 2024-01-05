@@ -113,8 +113,9 @@ int SpotifyClient::Next()
 
 int SpotifyClient::Play(String context_uri )
 {
-    Serial.println("Play()");
+    Serial.print("Play: ");
     String body = "{\"context_uri\":\"" + context_uri + "\",\"offset\":{\"position\":0,\"position_ms\":0}}";
+    Serial.println(body);
     String url = "https://api.spotify.com/v1/me/player/play?device_id=" + deviceId;
 
     HttpResult result = CallAPI( "PUT", url, body );
