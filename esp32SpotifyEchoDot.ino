@@ -219,6 +219,8 @@ void checkButton(){
           Serial.println("Button Held, Starting Portal");
           wifiManager.startWebPortal();
           portalRunning = true;
+          Serial.println("local ip:");
+          Serial.println(WiFi.localIP());
         }
         else{
           Serial.println("Button Held, Stopping Portal");
